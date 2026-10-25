@@ -1,0 +1,8 @@
+# Mailpit catches every email the dev host sends: SMTP on 1025, inbox at http://localhost:8025.
+# PostgreSQL comes from medusa-voucher's docker compose (port 5433), database medusa_dev_host.
+services:
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
