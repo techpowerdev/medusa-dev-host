@@ -4,13 +4,18 @@ import {
   createCustomersWorkflow,
   createProductsWorkflow,
   createShippingOptionsWorkflow,
+  createShippingProfilesWorkflow,
   createStockLocationsWorkflow,
   linkSalesChannelsToStockLocationWorkflow,
+  updateProductsWorkflow,
+  updateProductVariantsWorkflow,
+  updateShippingOptionsWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { createVoucherProductWorkflow } from "@khumkha/medusa-voucher/workflows"
 
 // Recreates what @khumkha/medusa-voucher needs on a fresh database, after the
-// initial seed. Re-running it skips anything that already exists:
+// initial seed. Re-running it skips anything that already exists and brings
+// "Email delivery" and "Central Gift Voucher" back to the settings below:
 // npx medusa exec ./src/scripts/seed-voucher-setup.ts
 // Put the "Email delivery" id it logs in VOUCHER_SHIPPING_OPTION_ID.
 export default async function seedVoucherSetup({ container }: ExecArgs) {
@@ -29,26 +34,88 @@ export default async function seedVoucherSetup({ container }: ExecArgs) {
     fields: ["id"],
     filters: { name: "Default Sales Channel" },
   })
-  const { data: [shippingProfile] } = await query.graph({
+  const { data: [defaultProfile] } = await query.graph({
     entity: "shipping_profile",
     fields: ["id"],
     filters: { type: "default" },
   })
-  if (!region || !salesChannel || !shippingProfile) {
+  if (!region || !salesChannel || !defaultProfile) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
       "Run the initial data seed (npx medusa db:migrate) first."
     )
   }
 
+  // ---- "Digital" shipping profile ------------------------------------------
+
+  // "Email delivery" is the only option on it, so it never shows up for the
+  // physical products in the default profile.
+  const { data: existingProfiles } = await query.graph({
+    entity: "shipping_profile",
+    fields: ["id"],
+    filters: { name: "Digital" },
+  })
+  let digitalProfileId = existingProfiles[0]?.id as string | undefined
+
+  if (!digitalProfileId) {
+    const { result: [profile] } = await createShippingProfilesWorkflow(container).run({
+      input: { data: [{ name: "Digital", type: "digital" }] },
+    })
+    digitalProfileId = profile.id
+    logger.info("Created the \"Digital\" shipping profile.")
+  }
+
   // ---- "Digital vouchers" stock location and "Email delivery" -------------
+
+  // The plugin records Voucher fulfillments with "Email delivery"; customers
+  // never choose it, so it is not enabled in the store.
+  const emailDeliveryRules = {
+    enabled_in_store: "false",
+    is_return: "false",
+  }
 
   const { data: existingOptions } = await query.graph({
     entity: "shipping_option",
-    fields: ["id"],
+    fields: ["id", "shipping_profile_id", "rules.id", "rules.attribute", "rules.value"],
     filters: { name: "Email delivery" },
   })
-  let shippingOptionId = existingOptions[0]?.id as string | undefined
+  const existingOption = existingOptions[0]
+  let shippingOptionId = existingOption?.id as string | undefined
+
+  if (existingOption) {
+    const rules = (existingOption.rules ?? []).filter(
+      (rule): rule is NonNullable<typeof rule> => Boolean(rule)
+    )
+    const outdated =
+      existingOption.shipping_profile_id !== digitalProfileId ||
+      Object.entries(emailDeliveryRules).some(
+        ([attribute, value]) =>
+          !rules.some(
+            (rule) =>
+              rule.attribute === attribute &&
+              // Stored as JSON ("\"false\""); query may return it either way.
+              String(rule.value).replace(/"/g, "") === value
+          )
+      )
+
+    if (outdated) {
+      await updateShippingOptionsWorkflow(container).run({
+        input: [
+          {
+            id: existingOption.id,
+            shipping_profile_id: digitalProfileId,
+            rules: Object.entries(emailDeliveryRules).map(([attribute, value]) => {
+              const current = rules.find((rule) => rule.attribute === attribute)
+              return current
+                ? { id: current.id, attribute, operator: "eq" as const, value }
+                : { attribute, operator: "eq" as const, value }
+            }),
+          },
+        ],
+      })
+      logger.info("Moved \"Email delivery\" to \"Digital\" and hid it from the store.")
+    }
+  }
 
   if (!shippingOptionId) {
     const { result: [stockLocation] } = await createStockLocationsWorkflow(container).run({
@@ -94,7 +161,7 @@ export default async function seedVoucherSetup({ container }: ExecArgs) {
           price_type: "flat",
           provider_id: "manual_manual",
           service_zone_id: fulfillmentSet.service_zones[0].id,
-          shipping_profile_id: shippingProfile.id,
+          shipping_profile_id: digitalProfileId,
           type: {
             label: "Email",
             description: "Vouchers are emailed once they are allocated.",
@@ -104,10 +171,11 @@ export default async function seedVoucherSetup({ container }: ExecArgs) {
             { currency_code: "thb", amount: 0 },
             { region_id: region.id, amount: 0 },
           ],
-          rules: [
-            { attribute: "enabled_in_store", value: "true", operator: "eq" },
-            { attribute: "is_return", value: "false", operator: "eq" },
-          ],
+          rules: Object.entries(emailDeliveryRules).map(([attribute, value]) => ({
+            attribute,
+            operator: "eq" as const,
+            value,
+          })),
         },
       ],
     })
@@ -117,13 +185,34 @@ export default async function seedVoucherSetup({ container }: ExecArgs) {
 
   // ---- "Central Gift Voucher" with a 500 THB Voucher product ----------------
 
+  // As the plugin recommends: no shipping profile and inventory management
+  // off, so its line items don't require shipping and a cart of only Vouchers
+  // completes without a shipping method.
   const { data: existingProducts } = await query.graph({
     entity: "product",
-    fields: ["id"],
+    fields: ["id", "shipping_profile.id", "variants.id", "variants.manage_inventory"],
     filters: { handle: "central-gift-voucher" },
   })
+  const existingProduct = existingProducts[0]
 
-  if (!existingProducts.length) {
+  if (existingProduct) {
+    if (existingProduct.shipping_profile?.id) {
+      await updateProductsWorkflow(container).run({
+        input: { selector: { id: existingProduct.id }, update: { shipping_profile_id: null } },
+      })
+      logger.info("Removed the shipping profile from \"Central Gift Voucher\".")
+    }
+
+    const managed = (existingProduct.variants ?? [])
+      .filter((variant) => variant?.manage_inventory)
+      .map((variant) => variant!.id)
+    if (managed.length) {
+      await updateProductVariantsWorkflow(container).run({
+        input: { selector: { id: managed }, update: { manage_inventory: false } },
+      })
+      logger.info("Turned off inventory management for \"Central Gift Voucher\".")
+    }
+  } else {
     const { result: [product] } = await createProductsWorkflow(container).run({
       input: {
         products: [
@@ -131,7 +220,6 @@ export default async function seedVoucherSetup({ container }: ExecArgs) {
             title: "Central Gift Voucher",
             handle: "central-gift-voucher",
             status: ProductStatus.PUBLISHED,
-            shipping_profile_id: shippingProfile.id,
             options: [{ title: "Face value", values: ["500 THB"] }],
             variants: [
               {

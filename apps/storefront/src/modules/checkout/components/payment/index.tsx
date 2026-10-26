@@ -18,6 +18,7 @@ import {
 import { HttpTypes } from "@medusajs/types"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
+import { isDeliveryReady } from "@lib/util/requires-shipping"
 
 const Payment = ({
   cart,
@@ -58,7 +59,7 @@ const Payment = ({
   )
 
   const paymentReady =
-    (activeSession && (cart?.shipping_methods?.length ?? 0) !== 0) || paidByGiftcard
+    (activeSession && isDeliveryReady(cart)) || paidByGiftcard
 
   const createQueryString = useCallback(
     (name: string, value: string) => {

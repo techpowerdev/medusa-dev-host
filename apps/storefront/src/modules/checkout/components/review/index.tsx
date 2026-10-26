@@ -5,6 +5,7 @@ import { Heading, Text, clx } from "@modules/common/components/ui"
 import PaymentButton from "../payment-button"
 import { useSearchParams } from "next/navigation"
 import { HttpTypes } from "@medusajs/types"
+import { isDeliveryReady } from "@lib/util/requires-shipping"
 
 const Review = ({ cart }: { cart: HttpTypes.StoreCart }) => {
   const searchParams = useSearchParams()
@@ -17,7 +18,7 @@ const Review = ({ cart }: { cart: HttpTypes.StoreCart }) => {
 
   const previousStepsCompleted =
     cart.shipping_address &&
-    (cart.shipping_methods?.length ?? 0) > 0 &&
+    isDeliveryReady(cart) &&
     (cart.payment_collection || paidByGiftcard)
 
   return (
