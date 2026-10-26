@@ -7,7 +7,7 @@ One local Medusa app shared by every `@khumkha/medusa-*` plugin, for checking a 
 - **One plugin at a time.** `medusa plugin:develop` / `plugin:publish` from one plugin rewrites `apps/backend/.yalc` and restarts the backend, so only one plugin may target the host at any moment. Say in the handoff that you used it.
 - **Leave it on `develop`.** When done, the host must run the `develop` of every plugin, so merged work can be tried before a release: stop your `plugin:develop`, check out `develop` in the plugin repo, then `plugin:publish` there and `plugin:add` here (see "Running").
 - **Change only your plugin's part** of this repo: its block in `medusa-config.ts`, its keys in `apps/backend/.env.template`, its scripts in `apps/backend/src/scripts/`, and its section in this README, through a pull request to this repo. Never change another plugin's block.
-- **Migrations from unmerged branches stay in the database.** If the host's database stops matching `main`, recreate it: `dropdb`/`createdb medusa_dev_host` in the PostgreSQL container, then `npx medusa db:migrate` and the seed steps below.
+- **Migrations from unmerged branches stay in the database.** If the host's database stops matching `main`, recreate it: `dropdb`/`createdb medusa_dev_host` in the PostgreSQL container, then `npx medusa db:migrate`, `npx medusa user -e admin@example.test -p supersecret`, the plugins' setup scripts below, and put the new publishable key in `apps/storefront/.env.local`.
 
 ## Running
 
@@ -28,15 +28,17 @@ While working on a plugin, keep `npx medusa plugin:develop` running in the plugi
 ## Seeded data
 
 - Admin: `admin@example.test` / `supersecret` (local only). Test customer: `somchai@example.test` (made-up).
-- Regions: Thailand (THB, store default) with "Email delivery" (0 THB) and Manual Payment (system provider: authorizes only, capture in the admin); Europe (EUR) from the starter's seed.
+- The store sells only in Thailand: currency THB only, region "Thailand" (country `th`, prices include 7% VAT) with Manual Payment (system provider: authorizes only, capture in the admin), stock location "Bangkok Warehouse" with "Standard Shipping" (50 THB) and "Express Shipping" (100 THB), and the starter's four products priced in THB. `src/migration-scripts/initial-data-seed.ts` runs once on the first `npx medusa db:migrate`, so an existing database keeps its old data until it is recreated (see "Rules for the shared host").
+- Demo catalogue (optional): `npx medusa exec ./src/scripts/seed-demo-products.ts` adds 50 products priced 190-980 THB.
 
 ## Plugins
 
 ### @khumkha/medusa-voucher
 
 - Env: `VOUCHER_ENCRYPTION_KEY`, `VOUCHER_SHIPPING_OPTION_ID`. Options in `medusa-config.ts`: `timezone: "Asia/Bangkok"`.
-- "Email delivery" (`so_01M5PN3MBQXTKZ7172FGYAAMP6`) belongs to the "Digital vouchers" stock location and is the shipping option the plugin records Voucher fulfillments with. The old "Email delivery" at "European Warehouse" was deleted.
-- Product "Central Gift Voucher": variant "500 THB" is a Voucher product (`vprod_01M5P09YKVJB75F3JWEHX6EP5A`); the old "50 EUR" variant is for the Europe region.
+- "Email delivery" (`so_01M5WQGY8SSRWJRV8ZC4YXET8F`, 0 THB) belongs to the "Digital vouchers" stock location and is the shipping option the plugin records Voucher fulfillments with.
+- Product "Central Gift Voucher": variant "500 THB" is a Voucher product (`vprod_01M5WQGYDSYT9TBG35S5CZRN1B`).
+- On a new database, after `npx medusa db:migrate`: `npx medusa exec ./src/scripts/seed-voucher-setup.ts` creates "Digital vouchers", "Email delivery", the product above and the test customer (it skips what exists), and logs the id for `VOUCHER_SHIPPING_OPTION_ID`.
 - Scripts (`apps/backend/src/scripts`, run with `npx medusa exec ./src/scripts/<file> [args]`): `deliver-order-vouchers.ts <order_id>`, `retry-voucher-deliveries.ts`, `mark-expired-vouchers.ts`.
 - Notification module: `@perseidesjs/notification-nodemailer` sending to Mailpit.
 
