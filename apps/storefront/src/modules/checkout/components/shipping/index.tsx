@@ -3,6 +3,7 @@ import { Radio, RadioGroup } from "@headlessui/react"
 import { setShippingMethod } from "@lib/data/cart"
 import { calculatePriceForShippingOption } from "@lib/data/fulfillment"
 import { convertToLocale } from "@lib/util/money"
+import requiresShipping from "@lib/util/requires-shipping"
 import { CheckCircleSolid, Loader } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
 import ErrorMessage from "@modules/checkout/components/error-message"
@@ -67,7 +68,15 @@ const Shipping: React.FC<ShippingProps> = ({
   const router = useRouter()
   const pathname = usePathname()
 
-  const isOpen = searchParams.get("step") === "delivery"
+  const needsShipping = requiresShipping(cart)
+  const isOpen = searchParams.get("step") === "delivery" && needsShipping
+
+  // Nothing in the cart ships, so there is no delivery step to show.
+  useEffect(() => {
+    if (searchParams.get("step") === "delivery" && !needsShipping) {
+      router.replace(pathname + "?step=payment", { scroll: false })
+    }
+  }, [searchParams, needsShipping, pathname, router])
 
   const _shippingMethods = availableShippingMethods?.filter(
     (sm) => (sm as unknown as { service_zone?: { fulfillment_set?: { type?: string; location?: { address: HttpTypes.StoreCartAddress } } } }).service_zone?.fulfillment_set?.type !== "pickup"
@@ -160,16 +169,18 @@ const Shipping: React.FC<ShippingProps> = ({
             "flex flex-row text-3xl-regular gap-x-2 items-baseline",
             {
               "opacity-50 pointer-events-none select-none":
-                !isOpen && cart.shipping_methods?.length === 0,
+                !isOpen && needsShipping && cart.shipping_methods?.length === 0,
             }
           )}
         >
           Delivery
-          {!isOpen && (cart.shipping_methods?.length ?? 0) > 0 && (
+          {!isOpen &&
+            (!needsShipping || (cart.shipping_methods?.length ?? 0) > 0) && (
             <CheckCircleSolid />
           )}
         </Heading>
         {!isOpen &&
+          needsShipping &&
           cart?.shipping_address &&
           cart?.billing_address &&
           cart?.email && (
@@ -386,7 +397,12 @@ const Shipping: React.FC<ShippingProps> = ({
       ) : (
         <div>
           <div className="text-small-regular">
-            {cart && (cart.shipping_methods?.length ?? 0) > 0 && (
+            {!needsShipping && (
+              <Text className="txt-medium text-ui-fg-subtle">
+                No delivery needed for the items in your cart
+              </Text>
+            )}
+            {needsShipping && (cart.shipping_methods?.length ?? 0) > 0 && (
               <div className="flex flex-col w-1/3">
                 <Text className="txt-medium-plus text-ui-fg-base mb-1">
                   Method

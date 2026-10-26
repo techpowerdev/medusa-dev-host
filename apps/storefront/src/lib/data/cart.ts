@@ -2,6 +2,7 @@
 
 import { sdk } from "@lib/config"
 import medusaError from "@lib/util/medusa-error"
+import requiresShipping from "@lib/util/requires-shipping"
 import { HttpTypes } from "@medusajs/types"
 import { revalidateTag } from "next/cache"
 import { redirect } from "next/navigation"
@@ -335,6 +336,8 @@ export async function submitPromotionForm(
 
 // TODO: Pass a POJO instead of a form entity here
 export async function setAddresses(currentState: unknown, formData: FormData) {
+  let cart: HttpTypes.StoreCart
+
   try {
     if (!formData) {
       throw new Error("No form data found when setting addresses")
@@ -376,13 +379,15 @@ export async function setAddresses(currentState: unknown, formData: FormData) {
         province: formData.get("billing_address.province"),
         phone: formData.get("billing_address.phone"),
       }
-    await updateCart(data)
+    cart = await updateCart(data)
   } catch (e: any) {
     return e.message
   }
 
   redirect(
-    `/${formData.get("shipping_address.country_code")}/checkout?step=delivery`
+    `/${formData.get("shipping_address.country_code")}/checkout?step=${
+      requiresShipping(cart) ? "delivery" : "payment"
+    }`
   )
 }
 

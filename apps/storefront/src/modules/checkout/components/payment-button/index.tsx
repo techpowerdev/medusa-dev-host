@@ -7,6 +7,7 @@ import { Button } from "@modules/common/components/ui"
 import { useElements, useStripe } from "@stripe/react-stripe-js"
 import { useParams } from "next/navigation"
 import React, { useState } from "react"
+import { isDeliveryReady } from "@lib/util/requires-shipping"
 import ErrorMessage from "../error-message"
 
 type PaymentButtonProps = {
@@ -23,7 +24,7 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
     !cart.shipping_address ||
     !cart.billing_address ||
     !cart.email ||
-    (cart.shipping_methods?.length ?? 0) < 1
+    !isDeliveryReady(cart)
 
   const paymentSession = cart.payment_collection?.payment_sessions?.[0]
 

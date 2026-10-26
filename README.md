@@ -27,7 +27,7 @@ While working on a plugin, keep `npx medusa plugin:develop` running in the plugi
 
 ## Seeded data
 
-- Admin: `admin@example.test` / `supersecret` (local only). Test customer: `somchai@example.test` (made-up).
+- Admin: `admin@example.test` / `supersecret` (local only). Test customer: `somchai@example.test` (made-up, no account); with an account: `buyer.voucher@example.test` / `supersecret` (local only).
 - The store sells only in Thailand: currency THB only, region "Thailand" (country `th`, prices include 7% VAT) with Manual Payment (system provider: authorizes only, capture in the admin), stock location "Bangkok Warehouse" with "Standard Shipping" (50 THB) and "Express Shipping" (100 THB), and the starter's four products priced in THB. `src/migration-scripts/initial-data-seed.ts` runs once on the first `npx medusa db:migrate`, so an existing database keeps its old data until it is recreated (see "Rules for the shared host").
 - Demo catalogue (optional): `npx medusa exec ./src/scripts/seed-demo-products.ts` adds 50 products priced 190-980 THB.
 
@@ -36,9 +36,10 @@ While working on a plugin, keep `npx medusa plugin:develop` running in the plugi
 ### @khumkha/medusa-voucher
 
 - Env: `VOUCHER_ENCRYPTION_KEY`, `VOUCHER_SHIPPING_OPTION_ID`. Options in `medusa-config.ts`: `timezone: "Asia/Bangkok"`.
-- "Email delivery" (`so_01M5WQGY8SSRWJRV8ZC4YXET8F`, 0 THB) belongs to the "Digital vouchers" stock location and is the shipping option the plugin records Voucher fulfillments with.
-- Product "Central Gift Voucher": variant "500 THB" is a Voucher product (`vprod_01M5WQGYDSYT9TBG35S5CZRN1B`).
-- On a new database, after `npx medusa db:migrate`: `npx medusa exec ./src/scripts/seed-voucher-setup.ts` creates "Digital vouchers", "Email delivery", the product above and the test customer (it skips what exists), and logs the id for `VOUCHER_SHIPPING_OPTION_ID`.
+- "Email delivery" (`so_01M5WQGY8SSRWJRV8ZC4YXET8F`, 0 THB) belongs to the "Digital vouchers" stock location and the "Digital" shipping profile, and is the shipping option the plugin records Voucher fulfillments with. It is not enabled in the store (`enabled_in_store` is false), so customers never see or choose it; the plugin's fulfillment still uses it.
+- Product "Central Gift Voucher": variant "500 THB" is a Voucher product (`vprod_01M5WQGYDSYT9TBG35S5CZRN1B`). Set up as the plugin recommends: no shipping profile and inventory management off, so its line items don't require shipping.
+- Checkout: a cart of only Vouchers skips the storefront's Delivery step and completes without a shipping method; a cart that also has physical products offers only Standard and Express.
+- On a new database, after `npx medusa db:migrate`: `npx medusa exec ./src/scripts/seed-voucher-setup.ts` creates the "Digital" profile, "Digital vouchers", "Email delivery", the product above and the test customer, and logs the id for `VOUCHER_SHIPPING_OPTION_ID`. Re-running it skips what exists and puts "Email delivery" and the product back to the settings above.
 - Scripts (`apps/backend/src/scripts`, run with `npx medusa exec ./src/scripts/<file> [args]`): `deliver-order-vouchers.ts <order_id>`, `retry-voucher-deliveries.ts`, `mark-expired-vouchers.ts`.
 - Notification module: `@perseidesjs/notification-nodemailer` sending to Mailpit.
 
