@@ -85,6 +85,9 @@ export default async function initial_data_seed({
             {
               currency_code: "thb",
               is_default: true,
+              // Thai retail prices include VAT. This covers prices set per
+              // currency (products); the region's flag covers region prices.
+              is_tax_inclusive: true,
             },
           ],
           default_sales_channel_id: defaultSalesChannel.id,
