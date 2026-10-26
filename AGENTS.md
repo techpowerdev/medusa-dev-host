@@ -1,6 +1,6 @@
 # medusa-dev-host
 
-This is the **shared dev host** for the `@khumkha/medusa-*` plugins. Read the "Rules for the shared host" and "Plugins" sections of `README.md` first: one plugin targets the host at a time, the host returns to every plugin's `main` when you are done, and you change only your own plugin's block in `medusa-config.ts`, `.env.template`, `src/scripts/` and `README.md`. Plugin code is never edited here; it lives in the plugin's own repo. Pull requests and commit messages are written in Thai (Conventional Commits prefix, identifiers and paths in English), and nothing is committed, pushed or merged unless the user asks in the current conversation.
+This is the **shared dev host** for the `@khumkha/medusa-*` plugins. Read the "Rules for the shared host" and "Plugins" sections of `README.md` first: one plugin targets the host at a time, the host returns to every plugin's `develop` when you are done, and you change only your own plugin's block in `medusa-config.ts`, `.env.template`, `src/scripts/` and `README.md`. Plugin code is never edited here; it lives in the plugin's own repo. Pull requests and commit messages are written in Thai (Conventional Commits prefix, identifiers and paths in English), and nothing is committed, pushed or merged unless the user asks in the current conversation.
 
 The rest of this file is the DTC starter's own guide.
 

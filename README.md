@@ -5,7 +5,7 @@ One local Medusa app shared by every `@khumkha/medusa-*` plugin, for checking a 
 ## Rules for the shared host
 
 - **One plugin at a time.** `medusa plugin:develop` / `plugin:publish` from one plugin rewrites `apps/backend/.yalc` and restarts the backend, so only one plugin may target the host at any moment. Say in the handoff that you used it.
-- **Leave it on `main`.** When done, the host must run the `main` of every plugin again: stop your `plugin:develop`, and if you pushed a feature branch, publish `main` and run `plugin:add` once more.
+- **Leave it on `develop`.** When done, the host must run the `develop` of every plugin, so merged work can be tried before a release: stop your `plugin:develop`, check out `develop` in the plugin repo, then `plugin:publish` there and `plugin:add` here (see "Running").
 - **Change only your plugin's part** of this repo: its block in `medusa-config.ts`, its keys in `apps/backend/.env.template`, its scripts in `apps/backend/src/scripts/`, and its section in this README, through a pull request to this repo. Never change another plugin's block.
 - **Migrations from unmerged branches stay in the database.** If the host's database stops matching `main`, recreate it: `dropdb`/`createdb medusa_dev_host` in the PostgreSQL container, then `npx medusa db:migrate` and the seed steps below.
 
@@ -13,9 +13,17 @@ One local Medusa app shared by every `@khumkha/medusa-*` plugin, for checking a 
 
 Services: PostgreSQL comes from `../medusa-voucher/docker-compose.yml` (port 5433, database `medusa_dev_host`, user `postgres`/`postgres`); Mailpit from `./docker-compose.yml` (SMTP 1025, inbox http://localhost:8025). No Redis.
 
+Plugins are installed the way Medusa's [plugin guide](https://docs.medusajs.com/learn/fundamentals/plugins/create) describes: from the local registry (yalc), never from GitHub or npm.
+
 1. In the plugin repo: `pnpm medusa plugin:publish`.
-2. Here: `docker compose up -d`, then in `apps/backend`: `npx medusa plugin:add @khumkha/medusa-<name>`, `npx medusa db:migrate`, `npx medusa develop` (admin at http://localhost:9000/app). After `plugin:add`, delete `apps/backend/node_modules/.vite` or the admin keeps serving the old plugin UI.
+2. Here: `docker compose up -d`, then in `apps/backend`: `npx medusa plugin:add @khumkha/medusa-<name>`, `npx medusa db:migrate`, `npx medusa develop` (admin at http://localhost:9000/app). After `plugin:add`, delete `apps/backend/node_modules/.vite` or the admin keeps serving the old plugin UI. Undo the `pnpm-lock.yaml` change `plugin:add` makes (`git checkout pnpm-lock.yaml`).
 3. In `apps/storefront`: `pnpm dev` (http://localhost:8000/th; the publishable key is in its `.env.local`).
+
+While working on a plugin, keep `npx medusa plugin:develop` running in the plugin repo after steps 1–2, as Medusa recommends:
+
+- It publishes only when a file changes (not when it starts), then this backend restarts by itself. Run `npx medusa db:migrate` here after a migration is added.
+- The admin then loads the plugin's admin from its source folder, with hot reload. `admin.vite` in `medusa-config.ts` dedupes the packages the dashboard shares with plugins; without it a plugin page using `@medusajs/dashboard` hooks fails with "useLocation() may be used only in the context of a <Router>".
+- The first time, and after stopping it, delete `apps/backend/node_modules/.vite` and restart `npx medusa develop`.
 
 ## Seeded data
 
