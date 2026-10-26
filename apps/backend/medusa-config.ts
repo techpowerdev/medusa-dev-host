@@ -13,6 +13,24 @@ module.exports = defineConfig({
       cookieSecret: process.env.COOKIE_SECRET,
     }
   },
+  // While a plugin runs `medusa plugin:develop`, the admin loads that plugin's admin from its
+  // own source folder, whose imports would resolve to the plugin's node_modules. Medusa dedupes
+  // only react and react-dom, so a second react-router breaks pages that use the dashboard's
+  // hooks. Resolve the packages that hold React context shared with the dashboard from this app
+  // only. Each must be a dependency of this app, or the admin cannot resolve it.
+  admin: {
+    vite: () => ({
+      resolve: {
+        dedupe: [
+          "react-router-dom",
+          "@medusajs/dashboard",
+          "@medusajs/ui",
+          "@tanstack/react-query",
+          "react-i18next",
+        ],
+      },
+    }),
+  },
   // Emails go to Mailpit (docker compose in this folder), as the plugin's README configures them.
   modules: [
     {
