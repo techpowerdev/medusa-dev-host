@@ -20,9 +20,16 @@ import { getLocale } from "./locale-actions"
 /**
  * Retrieves a cart by its ID. If no ID is provided, it will use the cart ID from the cookies.
  * @param cartId - optional - The ID of the cart to retrieve.
+ * @param fields - optional - The fields to retrieve.
+ * @param fresh - optional - Skip the cache. The page a server action redirects
+ * to can otherwise get the cart from before the action's update.
  * @returns The cart object if found, or null if not found.
  */
-export async function retrieveCart(cartId?: string, fields?: string) {
+export async function retrieveCart(
+  cartId?: string,
+  fields?: string,
+  fresh = false
+) {
   const id = cartId || (await getCartId())
   fields ??=
     "*items, *region, *items.product, *items.variant, *items.thumbnail, *items.metadata, +items.total, *promotions, +shipping_methods.name"
@@ -35,9 +42,12 @@ export async function retrieveCart(cartId?: string, fields?: string) {
     ...(await getAuthHeaders()),
   }
 
-  const next = {
-    ...(await getCacheOptions("carts")),
-  }
+  const cacheOptions = fresh
+    ? { cache: "no-store" as const }
+    : {
+        next: { ...(await getCacheOptions("carts")) },
+        cache: "force-cache" as const,
+      }
 
   return await sdk.client
     .fetch<HttpTypes.StoreCartResponse>(`/store/carts/${id}`, {
@@ -46,8 +56,7 @@ export async function retrieveCart(cartId?: string, fields?: string) {
         fields,
       },
       headers,
-      next,
-      cache: "force-cache",
+      ...cacheOptions,
     })
     .then(({ cart }: { cart: HttpTypes.StoreCart }) => cart)
     .catch(() => null)

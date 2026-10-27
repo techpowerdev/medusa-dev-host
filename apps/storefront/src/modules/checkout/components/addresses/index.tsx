@@ -1,6 +1,7 @@
 "use client"
 import { setAddresses } from "@lib/data/cart"
 import useToggleState from "@lib/hooks/use-toggle-state"
+import { isAddressReady } from "@lib/util/checkout-ready"
 import compareAddresses from "@lib/util/compare-addresses"
 import requiresShipping from "@lib/util/requires-shipping"
 import { CheckCircleSolid } from "@medusajs/icons"
@@ -27,6 +28,7 @@ const Addresses = ({
   const pathname = usePathname()
 
   const isOpen = searchParams.get("step") === "address"
+  const isReady = isAddressReady(cart)
 
   const { state: sameAsBilling, toggle: toggleSameAsBilling } = useToggleState(
     cart?.shipping_address && cart?.billing_address
@@ -48,9 +50,9 @@ const Addresses = ({
           className="flex flex-row text-3xl-regular gap-x-2 items-baseline"
         >
           Shipping Address
-          {!isOpen && <CheckCircleSolid />}
+          {!isOpen && isReady && <CheckCircleSolid />}
         </Heading>
-        {!isOpen && cart?.shipping_address && (
+        {!isOpen && isReady && (
           <Text>
             <button
               onClick={handleEdit}
@@ -93,7 +95,7 @@ const Addresses = ({
       ) : (
         <div>
           <div className="text-small-regular">
-            {cart && cart.shipping_address ? (
+            {cart && cart.shipping_address && isReady ? (
               <div className="flex items-start gap-x-8">
                 <div className="flex items-start gap-x-1 w-full">
                   <div

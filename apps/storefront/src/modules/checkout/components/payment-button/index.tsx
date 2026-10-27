@@ -3,11 +3,11 @@
 import { isManual, isStripeLike } from "@lib/constants"
 import { placeOrder } from "@lib/data/cart"
 import { HttpTypes } from "@medusajs/types"
-import { Button } from "@modules/common/components/ui"
+import { Button, Text } from "@modules/common/components/ui"
 import { useElements, useStripe } from "@stripe/react-stripe-js"
 import { useParams } from "next/navigation"
 import React, { useState } from "react"
-import { isDeliveryReady } from "@lib/util/requires-shipping"
+import { missingForOrder } from "@lib/util/checkout-ready"
 import ErrorMessage from "../error-message"
 
 type PaymentButtonProps = {
@@ -19,31 +19,45 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
   cart,
   "data-testid": dataTestId,
 }) => {
-  const notReady =
-    !cart ||
-    !cart.shipping_address ||
-    !cart.billing_address ||
-    !cart.email ||
-    !isDeliveryReady(cart)
+  const missing = missingForOrder(cart)
+  const notReady = missing.length > 0
 
   const paymentSession = cart.payment_collection?.payment_sessions?.[0]
 
+  let button: React.ReactNode
+
   switch (true) {
     case isStripeLike(paymentSession?.provider_id):
-      return (
+      button = (
         <StripePaymentButton
           notReady={notReady}
           cart={cart}
           data-testid={dataTestId}
         />
       )
+      break
     case isManual(paymentSession?.provider_id):
-      return (
+      button = (
         <ManualTestPaymentButton notReady={notReady} data-testid={dataTestId} />
       )
+      break
     default:
-      return <Button disabled>Select a payment method</Button>
+      button = <Button disabled>Select a payment method</Button>
   }
+
+  return (
+    <>
+      {button}
+      {notReady && (
+        <Text
+          className="mt-2 txt-medium text-ui-fg-subtle"
+          data-testid="order-not-ready-message"
+        >
+          Add your {missing.join(" and ")} to place the order.
+        </Text>
+      )}
+    </>
+  )
 }
 
 const StripePaymentButton = ({

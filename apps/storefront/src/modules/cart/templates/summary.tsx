@@ -7,6 +7,7 @@ import Divider from "@modules/common/components/divider"
 import DiscountCode from "@modules/checkout/components/discount-code"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { HttpTypes } from "@medusajs/types"
+import { isAddressReady } from "@lib/util/checkout-ready"
 import { isDeliveryReady } from "@lib/util/requires-shipping"
 
 type SummaryProps = {
@@ -14,7 +15,7 @@ type SummaryProps = {
 }
 
 function getCheckoutStep(cart: HttpTypes.StoreCart) {
-  if (!cart?.shipping_address?.address_1 || !cart.email) {
+  if (!isAddressReady(cart)) {
     return "address"
   } else if (!isDeliveryReady(cart)) {
     return "delivery"
