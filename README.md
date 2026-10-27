@@ -19,6 +19,14 @@ Plugins are installed the way Medusa's [plugin guide](https://docs.medusajs.com/
 2. Here: `docker compose up -d`, then in `apps/backend`: `npx medusa plugin:add @khumkha/medusa-<name>`, `npx medusa db:migrate`, `npx medusa develop` (admin at http://localhost:9000/app). After `plugin:add`, delete `apps/backend/node_modules/.vite` or the admin keeps serving the old plugin UI. Undo the `pnpm-lock.yaml` change `plugin:add` makes (`git checkout pnpm-lock.yaml`).
 3. In `apps/storefront`: `pnpm dev` (http://localhost:8000/th; the publishable key is in its `.env.local`).
 
+`scripts/use-plugin.sh` does steps 1–2 for a plugin (Node 22+):
+
+- `scripts/use-plugin.sh voucher` (or a path to the plugin repo) publishes the repo's current checkout, runs `plugin:add` and `db:migrate`, undoes the `pnpm-lock.yaml` change, deletes `node_modules/.vite`, stops this host's `medusa develop` (its watcher too, which a plain `kill` of port 9000 leaves behind), starts it again in the background, waits until it answers and prints each plugin's version, branch and commit. The backend log is in `$TMPDIR/medusa-dev-host-backend.log`. Hard reload the admin afterwards and log in again.
+- `scripts/use-plugin.sh --develop` puts every installed plugin back on its `develop` branch the same way ("Leave it on `develop`"). It stops if a plugin repo has uncommitted changes.
+- Both refuse to run while `medusa plugin:develop` is running.
+
+For a whole-journey check, run the storefront as a production build instead of `pnpm dev`: in `apps/storefront`, stop `pnpm dev`, then `pnpm build && pnpm start` (same port; the backend must be up for the build). Pages then open without the 10–20 second first compile of `pnpm dev`, so a slow add-to-cart no longer loses the cart cookie when the page changes. Rebuild after each storefront change, and undo the `next-env.d.ts` change the build makes (`git checkout next-env.d.ts`).
+
 While working on a plugin, keep `npx medusa plugin:develop` running in the plugin repo after steps 1–2, as Medusa recommends:
 
 - It publishes only when a file changes (not when it starts), then this backend restarts by itself. Run `npx medusa db:migrate` here after a migration is added.
